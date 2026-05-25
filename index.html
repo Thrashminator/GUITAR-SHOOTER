@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guitar Note Shooter - Leaderboard Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #0b0b1e; font-family: 'Roboto', sans-serif;
+            color: #fff; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+        #game-container {
+            position: relative; width: 100%; max-width: 900px; height: 100vh; max-height: 700px;
+            background: radial-gradient(circle at center, #1a1a3a 0%, #050510 100%);
+            border-radius: 12px; box-shadow: 0 0 30px rgba(0, 242, 254, 0.2); overflow: hidden; transition: transform 0.05s ease-out; 
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(5, 5, 16, 0.95); backdrop-filter: blur(8px); z-index: 10; padding: 30px;
+        }
+        h1 {
+            font-family: 'Orbitron', sans-serif; font-size: 2.8rem;
+            color: #00f2fe; text-shadow: 0 0 20px rgba(0, 242, 254, 0.6); margin-bottom: 15px; text-align: center;
+        }
+        p { font-size: 1rem; color: #a0a0c0; margin-bottom: 25px; text-align: center; max-width: 550px; line-height: 1.5; }
+        
+        .btn {
+            font-family: 'Orbitron', sans-serif; background: linear-gradient(45deg, #00f2fe, #4facfe);
+            border: none; padding: 12px 35px; color: #050510; font-size: 1rem; font-weight: bold; border-radius: 30px;
+            cursor: pointer; box-shadow: 0 0 20px rgba(0, 242, 254, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin: 5px;
+        }
+        .btn:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 242, 254, 0.7); }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(0, 242, 254, 0.4); color: #00f2fe;
+        }
+
+        .lang-selector { position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 20; }
+        .lang-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(0, 242, 254, 0.3);
+            color: #a0a0c0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: 'Orbitron', sans-serif; transition: all 0.2s;
+        }
+        .lang-btn.active { background: #00f2fe; color: #050510; font-weight: bold; box-shadow: 0 0 10px rgba(0, 242, 254, 0.4); }
+
+        .auth-form { display: flex; flex-direction: column; gap: 10px; width: 320px; margin-bottom: 15px; }
+        .auth-form input {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(0, 242, 254, 0.3);
+            padding: 12px; border-radius: 8px; color: #fff; font-family: 'Orbitron', sans-serif; text-align: center; outline: none;
+        }
+        .auth-form input:focus { border-color: #00f2fe; box-shadow: 0 0 10px rgba(0, 242, 254, 0.3); }
+        .token-display { background: rgba(0, 242, 254, 0.1); border: 1px dashed #00f2fe; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; max-width: 350px; }
+
+        .menu-sections { display: flex; gap: 20px; width: 100%; max-width: 700px; margin-bottom: 30px; }
+        .mode-card {
+            flex: 1; background: rgba(255, 255, 255, 0.03); border: 2px solid rgba(0, 242, 254, 0.1);
+            border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.25s ease;
+        }
+        .mode-card:hover { background: rgba(0, 242, 254, 0.05); border-color: #00f2fe; transform: translateY(-4px); }
+        .mode-card.selected { background: rgba(0, 242, 254, 0.1); border-color: #00f2fe; box-shadow: 0 0 20px rgba(0, 242, 254, 0.3); }
+        .mode-card h3 { font-family: 'Orbitron', sans-serif; margin-bottom: 10px; }
+        .mode-card p { font-size: 0.85rem; color: #8080a0; }
+
+        .range-container { width: 100%; margin-top: 15px; opacity: 0.4; pointer-events: none; transition: opacity 0.3s; }
+        .range-container.active { opacity: 1; pointer-events: auto; }
+        .range-slider { width: 100%; -webkit-appearance: none; background: #202040; height: 6px; border-radius: 3px; outline: none; margin: 10px 0; }
+        .range-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #00f2fe; cursor: pointer; }
+
+        .leaderboard-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #050510;
+            z-index: 30; display: flex; flex-direction: column; align-items: center; padding: 40px; overflow-y: auto;
+        }
+        .leaderboard-table { width: 100%; max-width: 600px; border-collapse: collapse; margin-top: 20px; font-family: 'Orbitron', sans-serif; }
+        .leaderboard-table th, .leaderboard-table td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(0, 242, 254, 0.1); }
+        .leaderboard-table th { color: #00f2fe; font-size: 0.9rem; }
+        .leaderboard-table tr:hover { background: rgba(0, 242, 254, 0.03); }
+
+        /* HUD & Кнопки управления (ОБНОВЛЕНО) */
+        #hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; font-family: 'Orbitron', sans-serif; pointer-events: none; z-index: 5; }
+        .hud-item { background: rgba(255, 255, 255, 0.05); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0, 242, 254, 0.2); backdrop-filter: blur(4px); }
+        .hud-label { font-size: 0.75rem; color: #707090; margin-bottom: 4px; }
+        .hud-value { font-size: 1.3rem; color: #4facfe; text-shadow: 0 0 10px rgba(79, 172, 254, 0.5); }
+        #pause-trigger-btn { pointer-events: auto; align-self: center; margin: 0; } /* Кнопка теперь использует общий класс .btn */
+        .hud-item.heart-damaged { animation: heartBreak 0.4s ease-out; border-color: #ff0055; background: rgba(255, 0, 85, 0.15); }
+
+        .settings-toggle { display: flex; align-items: center; justify-content: space-between; width: 250px; margin: 12px 0; font-family: 'Orbitron', sans-serif; font-size: 0.9rem; }
+        .settings-toggle input { cursor: pointer; width: 18px; height: 18px; accent-color: #00f2fe; }
+
+        #countdown-screen { font-family: 'Orbitron', sans-serif; font-size: 8rem; color: #00f2fe; text-shadow: 0 0 30px #00f2fe; z-index: 15; pointer-events: none; background: rgba(5,5,16,0.6); }
+
+        #detected-note { position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%); font-family: 'Orbitron', sans-serif; font-size: 1.1rem; color: #ff007f; background: rgba(255, 0, 127, 0.1); padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(255, 0, 127, 0.3); pointer-events: none; z-index: 4; }
+        #track-info { position: absolute; bottom: 20px; right: 20px; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: #505070; pointer-events: none; z-index: 4; }
+        .hidden { display: none !important; }
+        @keyframes heartBreak { 0% { transform: scale(1); } 20% { transform: scale(1.3) rotate(-5deg); } 40% { transform: scale(0.9) rotate(5deg); } 60% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="lang-box" class="lang-selector">
+        <button class="lang-btn active" onclick="changeLanguage('en')">EN</button>
+        <button class="lang-btn" onclick="changeLanguage('ua')">UA</button>
+    </div>
+
+    <div id="hud">
+        <div class="hud-item"><div id="lbl-score" class="hud-label">SCORE</div><div id="score-val" class="hud-value">0</div></div>
+        <div id="lives-hud" class="hud-item"><div id="lbl-lives" class="hud-label">LIVES</div><div id="lives-val" class="hud-value" style="color: #ff0055;">❤️❤️❤️</div></div>
+        <div class="hud-item"><div id="lbl-speed" class="hud-label">SPEED</div><div id="speed-val" class="hud-value">1.00x</div></div>
+        <button id="pause-trigger-btn" class="btn" onclick="triggerPause()">PAUSE</button>
+    </div>
+
+    <div id="detected-note">Input: -- (0 Hz)</div>
+    <div id="track-info">Soundtrack: Loading...</div>
+
+    <div id="countdown-screen" class="overlay hidden">3</div>
+
+    <div id="auth-screen" class="overlay">
+        <h1 style="margin-bottom: 5px;">GUITAR SHOOTER</h1>
+        <p id="auth-subtitle" style="color: #4facfe;">PILOT PROFILE SIGN IN</p>
+        
+        <div class="auth-form">
+            <input type="text" id="auth-username" placeholder="Nickname" maxlength="14">
+            <input type="number" id="auth-age" placeholder="Age (For Registration)" min="1" max="120">
+            <input type="text" id="auth-token" placeholder="Secret Token (For Existing Account Only)" autocomplete="off">
+        </div>
+        
+        <div id="token-box" class="token-display hidden">
+            <div style="font-size: 0.8rem; color: #a0a0c0;">YOUR SECRET TOKEN (SAVE IT TO LOG IN LATER):</div>
+            <div id="token-generated-val" style="font-size: 1.4rem; color: #00f2fe; font-family: 'Orbitron'; font-weight: bold; margin: 5px 0;">--</div>
+        </div>
+
+        <button class="btn" id="auth-submit-btn" onclick="handleAuth()">CONFIRM</button>
+    </div>
+
+    <div id="start-screen" class="overlay hidden">
+        <h1 id="welcome-user">WELCOME</h1>
+        <p id="menu-desc">Select game mode and customize your session:</p>
+        
+        <div class="menu-sections">
+            <div id="mode-dynamic" class="mode-card selected">
+                <h3 id="mode-dyn-title">DYNAMIC</h3>
+                <p id="mode-dyn-desc">The speed accelerates with each hit. Ranked mode (Saves to leaderboard!).</p>
+            </div>
+            <div id="mode-fixed" class="mode-card">
+                <h3 id="mode-fix-title">FIXED TEMPO</h3>
+                <p id="mode-fix-desc">Stable speed throughout. Practice mode (Does not count toward Leaderboard).</p>
+                <div id="range-box" class="range-container">
+                    <input type="range" id="speed-slider" class="range-slider" min="1" max="10" value="3">
+                    <div><span id="lbl-difficulty">Difficulty:</span> <span id="slider-badge" class="speed-badge">3</span> / 10</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" id="start-btn">PLAY</button>
+            <button class="btn btn-secondary" id="leaderboard-btn" onclick="openLeaderboard()">TOP 100</button>
+        </div>
+    </div>
+
+    <div id="pause-screen" class="overlay hidden">
+        <h1 id="pause-title" style="color: #4facfe;">PAUSED</h1>
+        <div class="settings-box" style="margin: 20px 0;">
+            <div class="settings-toggle">
+                <span id="lbl-sound-fx">SOUND EFFECTS</span>
+                <input type="checkbox" id="chk-sound" checked onchange="toggleSoundEffects(this.checked)">
+            </div>
+            <div class="settings-toggle">
+                <span id="lbl-bg-music">BACKGROUND MUSIC</span>
+                <input type="checkbox" id="chk-music" checked onchange="toggleBackgroundMusic(this.checked)">
+            </div>
+        </div>
+        <button class="btn" onclick="resumeGame()">RESUME</button>
+        <button class="btn btn-secondary" onclick="exitToMenu()">QUIT TO MENU</button>
+    </div>
+
+    <div id="leaderboard-screen" class="leaderboard-modal hidden">
+        <h1 id="leaderboard-title">TOP 100 PILOTS</h1>
+        <p id="leaderboard-subtitle" style="color: #ff007f;">DYNAMIC MODE RANKINGS</p>
+        <table class="leaderboard-table" id="leaderboard-table-body">
+            </table>
+        <button class="btn" style="margin-top: 35px; width: 180px;" onclick="closeLeaderboard()">CLOSE</button>
+    </div>
+
+    <div id="game-over-screen" class="overlay hidden">
+        <h1 style="color: #ff0055; text-shadow: 0 0 20px rgba(255,0,85,0.6);">GAME OVER</h1>
+        <p id="final-score">You scored: 0 points</p>
+        <button class="btn" id="restart-btn">PLAY AGAIN</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+    const SERVER_URL = "http://localhost:3000";
+
+    const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    const BASE_NOTES = [
+        { name: 'C', color: '#ff0055', lane: 0 },
+        { name: 'D', color: '#ff9900', lane: 1 },
+        { name: 'E', color: '#ffea00', lane: 2 },
+        { name: 'F', color: '#00ff66', lane: 3 },
+        { name: 'G', color: '#00ffff', lane: 4 },
+        { name: 'A', color: '#4facfe', lane: 5 },
+        { name: 'B', color: '#9900ff', lane: 6 }
+    ];
+
+    const LANGUAGES = {
+        en: {
+            score: "SCORE", lives: "LIVES", speed: "SPEED", input: "Input",
+            desc: "Select game mode and customize your session:",
+            dynTitle: "DYNAMIC (RANKED)", dynDesc: "The speed accelerates with each hit. Ranked mode (Saves to leaderboard!).",
+            fixTitle: "FIXED TEMPO", fixDesc: "Stable speed throughout. Practice mode (Does not count toward Leaderboard).",
+            difficulty: "Difficulty:", play: "PLAY", over: "GAME OVER", scored: "You scored: {score} points",
+            back: "PLAY AGAIN", lvl: "Lvl ", soundtrack: "Soundtrack: ", off: "Off", pause: "PAUSE",
+            paused: "PAUSED", soundfx: "SOUND EFFECTS", bgmusic: "BACKGROUND MUSIC", resume: "RESUME", quit: "QUIT TO MENU"
+        },
+        ua: {
+            score: "РАХУНОК", lives: "ЖИТТЯ", speed: "ШВИДКІСТЬ", input: "Вхід",
+            desc: "Оберіть режим гри та налаштуйте сесію под себе:",
+            dynTitle: "ДИНАМІЧНИЙ (РЕЙТИНГ)", dynDesc: "Швидкість зростає з кожним влучанням. Результат зберігається в глобальний лідерборд!",
+            fixTitle: "ФІКСОВАНИЙ ТЕМП", fixDesc: "Стабільна швідкість протягом усієї гри. Тренувальний режим (не йде в рейтинг).",
+            difficulty: "Складність:", play: "ГРАТИ", over: "ГРУ ЗАКІНЧЕНО", scored: "Ви набрали: {score} очок",
+            back: "ГРАТИ ЗНОВУ", lvl: "Рівень ", soundtrack: "Саундтрек: ", off: "Вимкнено", pause: "ПАУЗА",
+            paused: "ПАУЗА", soundfx: "ЗВУКОВІ ЕФЕКТИ", bgmusic: "ФОНОВА МУЗИКА", resume: "ПРОДОВЖИТИ", quit: "ВИЙТИ В МЕНЮ"
+        }
+    };
+    let currentLang = 'en';
+    let currentUser = null;
+
+    const AUDIO_PATHS = {
+        shoot: 'sounds/shoot.mp3', hit: 'sounds/hit.mp3', miss: 'sounds/miss.mp3',
+        pass: 'sounds/pass.mp3', gameover: 'sounds/gameover.mp3', start: 'sounds/start.mp3',
+        menuMusic: 'sounds/menu.mp3', click: 'sounds/start.mp3', tick: 'sounds/start.mp3'
+    };
+
+    const AMBIENT_PLAYLIST = [
+        { id: 1, name: "Neon Dreams", path: "sounds/Track 1.mp3" },
+        { id: 1, name: "Cyberpunk Highway", path: "sounds/Track 2.mp3" },
+        { id: 1, name: "Solar Wind", path: "sounds/Track 3.mp3" },
+        { id: 1, name: "Deep Space Echo", path: "sounds/Track 4.mp3" },
+        { id: 1, name: "Retro Wave Pulse", path: "sounds/Track 5.mp3" },
+        { id: 1, name: "Guitar Horizon", path: "sounds/Track 6.mp3" },
+        { id: 1, name: "Stardust Ambient", path: "sounds/Track 7.mp3" },
+        { id: 1, name: "Delta Velocity", path: "sounds/Track 8.mp3" },
+        { id: 1, name: "Nebula Chill", path: "sounds/Track 9.mp3" },
+        { id: 2, name: "Orion's Belt", path: "sounds/Track 10.mp3" }
+    ];
+
+    const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container');
+    const startScreen = document.getElementById('start-screen'); const gameOverScreen = document.getElementById('game-over-screen');
+    const startBtn = document.getElementById('start-btn'); const restartBtn = document.getElementById('restart-btn');
+    const modeDynamicCard = document.getElementById('mode-dynamic'); const modeFixedCard = document.getElementById('mode-fixed');
+    const rangeBox = document.getElementById('range-box'); const speedSlider = document.getElementById('speed-slider'); const sliderBadge = document.getElementById('slider-badge');
+    const scoreVal = document.getElementById('score-val'); const livesVal = document.getElementById('lives-val'); const livesHud = document.getElementById('lives-hud'); const speedVal = document.getElementById('speed-val');
+    const finalScoreText = document.getElementById('final-score'); const detectedNoteDiv = document.getElementById('detected-note'); const trackInfoDiv = document.getElementById('track-info');
+    const langBox = document.getElementById('lang-box'); const pauseScreen = document.getElementById('pause-screen'); const countdownScreen = document.getElementById('countdown-screen');
+
+    let score = 0; let lives = 3; let baseSpeed = 0.65; let speedMultiplier = 1.0; let isDynamicMode = true; let fixedSpeedLevel = 3;   
+    let gameActive = false; let isPaused = false;
+    let notes = []; let bullets = []; let particles = []; let spawnTimer = 0; let spawnInterval = 160; 
+    let shakeTimer = 0; let shakeIntensity = 0; let flashAlpha = 0; let flashColor = '#ffffff'; let gunRecoilY = 0;
+
+    let audioContext = null; let audioInitialized = false; let analyser; let bufferLength; let dataArray; let lastDetectedNoteName = null; let noteSilenceCounter = 0; 
+    let bgMusicAudio = new Audio(); let menuMusicAudio = new Audio(); let currentTrackIndex = -1;
+    let enableSoundFX = true; let enableBGMusic = true;
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+
+    document.addEventListener('click', (e) => {
+        if(e.target.closest('button') || e.target.closest('.mode-card')) {
+            playMenuClick();
+        }
+    });
+
+    function playMenuClick() {
+        if (!enableSoundFX) return;
+        let sfx = new Audio(AUDIO_PATHS.click); sfx.volume = 0.4; sfx.play().catch(()=>{});
+    }
+
+    function changeLanguage(lang) {
+        currentLang = lang; document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active')); if(event) event.target.classList.add('active');
+        const text = LANGUAGES[lang];
+        document.getElementById('lbl-score').textContent = text.score; document.getElementById('lbl-lives').textContent = text.lives; document.getElementById('lbl-speed').textContent = text.speed;
+        document.getElementById('menu-desc').textContent = text.desc; document.getElementById('mode-dyn-title').textContent = text.dynTitle; document.getElementById('mode-dyn-desc').textContent = text.dynDesc;
+        document.getElementById('mode-fix-title').textContent = text.fixTitle; document.getElementById('mode-fix-desc').textContent = text.fixDesc;
+        document.getElementById('lbl-difficulty').textContent = text.difficulty; document.getElementById('start-btn').textContent = text.play; document.getElementById('restart-btn').textContent = text.back;
+        document.getElementById('pause-trigger-btn').textContent = text.pause; document.getElementById('pause-title').textContent = text.paused;
+        document.getElementById('lbl-sound-fx').textContent = text.soundfx; document.getElementById('lbl-bg-music').textContent = text.bgmusic;
+        updateHUD();
+    }
+
+    window.addEventListener('load', () => {
+        const savedUser = localStorage.getItem('guitar_shooter_user');
+        const savedToken = localStorage.getItem('guitar_shooter_token');
+        if(savedUser && savedToken) {
+            silentLogin(savedUser, savedToken);
+        }
+    });
+
+    async function silentLogin(username, token) {
+        try {
+            let res = await fetch(`${SERVER_URL}/api/register`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username, token })
+            });
+            let data = await res.json();
+            if(!data.error) {
+                currentUser = data.player;
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
+                startScreen.classList.remove('hidden');
+                playMenuMusic();
+            }
+        } catch(e) { console.log("Silent login failed."); }
+    }
+
+    async function handleAuth() {
+        const username = document.getElementById('auth-username').value.trim();
+        const age = parseInt(document.getElementById('auth-age').value);
+        const token = document.getElementById('auth-token').value.trim();
+        
+        if(!username) return alert("Nickname required");
+
+        let bodyData = { username };
+        if(token) bodyData.token = token;
+        else if(age) bodyData.age = age;
+        else return alert("Provide Age for new registration OR Secret Token for existing nickname!");
+
+        try {
+            let res = await fetch(`${SERVER_URL}/api/register`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(bodyData)
+            });
+            let data = await res.json();
+            
+            if(data.error) return alert(data.error);
+            
+            currentUser = data.player;
+            localStorage.setItem('guitar_shooter_user', currentUser.username);
+            localStorage.setItem('guitar_shooter_token', currentUser.secret_token);
+
+            if(!token) {
+                document.getElementById('token-generated-val').textContent = currentUser.secret_token;
+                document.getElementById('token-box').classList.remove('hidden');
+                document.getElementById('auth-submit-btn').onclick = function() {
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
+                    startScreen.classList.remove('hidden');
+                    playMenuMusic();
+                };
+                alert("Registration successful! Save your Secret Token to not lose your profile!");
+            } else {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
+                startScreen.classList.remove('hidden');
+                playMenuMusic();
+            }
+        } catch(e) { alert("Server error. Run node server.js first!"); }
+    }
+
+    async function openLeaderboard() {
+        document.getElementById('leaderboard-screen').classList.remove('hidden');
+        let tbody = document.getElementById('leaderboard-table-body');
+        tbody.innerHTML = `<tr><th>RANK</th><th>NAME</th><th>AGE</th><th>SCORE</th></tr>`;
+        try {
+            let res = await fetch(`${SERVER_URL}/api/leaderboard`);
+            let data = await res.json();
+            data.forEach((p, idx) => {
+                tbody.innerHTML += `<tr><td>#${idx+1}</td><td>${p.username}</td><td>${p.age}</td><td style="color:#00f2fe">${p.high_score}</td></tr>`;
+            });
+        } catch(e) { tbody.innerHTML += `<tr><td colspan="4">Error loading data</td></tr>`; }
+    }
+    function closeLeaderboard() { document.getElementById('leaderboard-screen').classList.add('hidden'); }
+
+    function triggerPause() {
+        if(!gameActive || isPaused) return;
+        isPaused = true; gameActive = false;
+        if (enableBGMusic) bgMusicAudio.pause();
+        pauseScreen.classList.remove('hidden');
+    }
+
+    function resumeGame() {
+        pauseScreen.classList.add('hidden');
+        countdownScreen.classList.remove('hidden');
+        let count = 3; countdownScreen.textContent = count;
+        
+        if(enableSoundFX) { let tick = new Audio(AUDIO_PATHS.tick); tick.play(); }
+
+        let timer = setInterval(() => {
+            count--;
+            if(count <= 0) {
+                clearInterval(timer);
+                countdownScreen.classList.add('hidden');
+                gameActive = true;
+                if(enableBGMusic && currentTrackIndex !== -1) bgMusicAudio.play();
+                isPaused = false;
+            } else {
+                countdownScreen.textContent = count;
+                if(enableSoundFX) { let tick = new Audio(AUDIO_PATHS.tick); tick.play(); }
+            }
+        }, 1000);
+    }
+
+    function toggleSoundEffects(val) { enableSoundFX = val; }
+    function toggleBackgroundMusic(val) {
+        enableBGMusic = val;
+        if(!val) { bgMusicAudio.pause(); menuMusicAudio.pause(); } 
+        else { if(!gameActive) playMenuMusic(); else if(currentTrackIndex!==-1) bgMusicAudio.play(); }
+    }
+
+    modeDynamicCard.addEventListener('click', () => { isDynamicMode = true; modeDynamicCard.classList.add('selected'); modeFixedCard.classList.remove('selected'); rangeBox.classList.remove('active'); });
+    modeFixedCard.addEventListener('click', () => { isDynamicMode = false; modeFixedCard.classList.add('selected'); modeDynamicCard.classList.remove('selected'); rangeBox.classList.add('active'); });
+    speedSlider.addEventListener('input', (e) => { fixedSpeedLevel = parseInt(e.target.value); sliderBadge.textContent = fixedSpeedLevel; });
+
+    function playMenuMusic() {
+        if (!AUDIO_PATHS.menuMusic || !enableBGMusic) return;
+        if (menuMusicAudio.src === "" || !menuMusicAudio.src.includes(AUDIO_PATHS.menuMusic)) {
+            menuMusicAudio.src = AUDIO_PATHS.menuMusic;
+            menuMusicAudio.loop = true;
+            menuMusicAudio.volume = 0.4;
+        }
+        if (menuMusicAudio.paused) {
+            menuMusicAudio.play().catch(()=>{});
+        }
+        trackInfoDiv.textContent = LANGUAGES[currentLang].soundtrack + "Menu Theme";
+    }
+
+    function playRandomAmbient() {
+        if (AMBIENT_PLAYLIST.length === 0 || !enableBGMusic) return;
+        let newIndex = Math.floor(Math.random() * AMBIENT_PLAYLIST.length);
+        currentTrackIndex = newIndex; const track = AMBIENT_PLAYLIST[currentTrackIndex];
+        bgMusicAudio.src = track.path; bgMusicAudio.volume = 0.35;
+        trackInfoDiv.textContent = LANGUAGES[currentLang].soundtrack + track.name;
+        bgMusicAudio.play().catch(()=>{});
+    }
+    bgMusicAudio.addEventListener('ended', () => { if (gameActive) playRandomAmbient(); });
+
+    function playSound(path, volume = 1.0) {
+        if (!path || !enableSoundFX) return;
+        const sound = new Audio(path); sound.volume = volume; sound.play().catch(()=>{});
+    }
+
+    async function initAudio() {
+        if (audioInitialized) return true;
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext; audioContext = new AudioCtx();
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }});
+            analyser = audioContext.createAnalyser(); analyser.fftSize = 2048; bufferLength = analyser.fftSize; dataArray = new Float32Array(bufferLength);
+            const source = audioContext.createMediaStreamSource(stream); source.connect(analyser);
+            audioInitialized = true; return true;
+        } catch (err) { alert('Mic blocked'); return false; }
+    }
+
+    function autoCorrelate(buffer, sampleRate) {
+        let SIZE = buffer.length; let sum = 0; for (let i = 0; i < SIZE; i++) sum += buffer[i] * buffer[i];
+        let rms = Math.sqrt(sum / SIZE); if (rms < 0.015) return -1;
+        let minPeriod = Math.floor(sampleRate / 1200); let maxPeriod = Math.ceil(sampleRate / 70); if (maxPeriod > SIZE) maxPeriod = SIZE;
+        let maxVal = -1, maxPos = -1;
+        for (let lag = minPeriod; lag < maxPeriod; lag++) {
+            let correlation = 0; for (let i = 0; i < SIZE - lag; i++) correlation += buffer[i] * buffer[i + lag];
+            if (correlation > maxVal) { maxVal = correlation; maxPos = lag; }
+        }
+        return maxPos !== -1 && maxVal > 0 ? sampleRate / maxPos : -1;
+    }
+
+    function frequencyToNoteName(frequency) {
+        if (!frequency || frequency < 50 || frequency > 2000) return null;
+        let midi = Math.round(69 + 12 * Math.log2(frequency / 440)); let noteIndex = midi % 12; if (noteIndex < 0) noteIndex += 12;
+        const chromatic = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        let name = chromatic[noteIndex]; if (name && name.includes('#')) name = name[0]; return name;
+    }
+
+    function spawnNote() {
+        const target = BASE_NOTES[Math.floor(Math.random() * BASE_NOTES.length)]; const laneWidth = canvas.width / 7; const x = laneWidth * target.lane + laneWidth / 2;
+        notes.push({ x: x, y: -30, info: target, radius: 22, speed: baseSpeed * speedMultiplier });
+    }
+
+    function handlePlayerInput(playedNoteName) {
+        if (!gameActive) return;
+        const gunX = canvas.width / 2, gunY = canvas.height - 30, playedIndex = NOTE_NAMES.indexOf(playedNoteName);
+        if (playedIndex === -1) return;
+        let targetNote = null; let maxSubY = -999;
+        for (let i = 0; i < notes.length; i++) { if (notes[i].info.name === playedNoteName && notes[i].y > maxSubY) { maxSubY = notes[i].y; targetNote = notes[i]; } }
+        gunRecoilY = 12; playSound(AUDIO_PATHS.shoot, 0.7);
+        if (targetNote) bullets.push({ x: gunX, y: gunY, targetNote: targetNote, targetX: targetNote.x, targetY: targetNote.y, speed: 35, isCorrect: true, color: targetNote.info.color });
+        else { const laneWidth = canvas.width / 7; bullets.push({ x: gunX, y: gunY, targetNote: null, targetX: laneWidth * playedIndex + laneWidth / 2, targetY: -50, speed: 35, isCorrect: false, color: '#ff0055' }); }
+    }
+
+    async function triggerGameOver() {
+        gameActive = false; isPaused = false;
+        bgMusicAudio.pause(); playSound(AUDIO_PATHS.gameover, 1.0);
+        finalScoreText.textContent = LANGUAGES[currentLang].scored.replace('{score}', score);
+        
+        if(isDynamicMode && currentUser) {
+            try {
+                await fetch(`${SERVER_URL}/api/score`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: currentUser.username, token: currentUser.secret_token, score: score })
+                });
+            } catch(e) { console.error("Could not save score."); }
+        }
+
+        langBox.classList.remove('hidden'); 
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    function update() {
+        if (!gameActive) return; if (gunRecoilY > 0) gunRecoilY -= 1;
+        
+        if (shakeTimer > 0) { 
+            const dx = (Math.random()-0.5)*shakeIntensity, dy = (Math.random()-0.5)*shakeIntensity; 
+            gameContainer.style.transform = `translate(${dx}px, ${dy}px)`; 
+            shakeTimer--; 
+            if (shakeTimer <= 0) gameContainer.style.transform = 'translate(0, 0)'; 
+        }
+        if (flashAlpha > 0) flashAlpha -= 0.02;
+
+        if (analyser) {
+            analyser.getFloatTimeDomainData(dataArray); let freq = autoCorrelate(dataArray, audioContext.sampleRate);
+            if (freq !== -1) {
+                let noteName = frequencyToNoteName(freq);
+                if (noteName && noteName !== lastDetectedNoteName) { detectedNoteDiv.textContent = `${LANGUAGES[currentLang].input}: ${noteName} (${Math.round(freq)} Hz)`; handlePlayerInput(noteName); lastDetectedNoteName = noteName; }
+                noteSilenceCounter = 0;
+            } else { if (++noteSilenceCounter > 10) { lastDetectedNoteName = null; detectedNoteDiv.textContent = `${LANGUAGES[currentLang].input}: -- (0 Hz)`; } }
+        }
+
+        if (++spawnTimer >= Math.max(35, spawnInterval - (speedMultiplier * 10))) { spawnNote(); spawnTimer = 0; }
+
+        for (let i = notes.length - 1; i >= 0; i--) {
+            notes[i].y += notes[i].speed;
+            if (notes[i].y > canvas.height - 40) {
+                notes.splice(i, 1); 
+                lives--; 
+                livesHud.classList.remove('heart-damaged'); 
+                void livesHud.offsetWidth; 
+                livesHud.classList.add('heart-damaged');
+                shakeIntensity = 12; shakeTimer = 10; 
+                updateHUD(); 
+                playSound(AUDIO_PATHS.pass, 0.8);
+                if (lives <= 0) { triggerGameOver(); return; }
+            }
+        }
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i]; let tx = b.isCorrect && b.targetNote && notes.includes(b.targetNote) ? b.targetNote.x : b.targetX;
+            let ty = b.isCorrect && b.targetNote && notes.includes(b.targetNote) ? b.targetNote.y : b.targetY;
+            let dx = tx - b.x, dy = ty - b.y, dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < b.speed) {
+                if (b.isCorrect && b.targetNote && notes.includes(b.targetNote)) {
+                    for(let p=0;p<20;p++) particles.push({ x: b.targetNote.x, y: b.targetNote.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, radius: Math.random()*4+1, color: b.targetNote.info.color, alpha: 1, decay: Math.random()*0.02+0.015 });
+                    flashColor = b.targetNote.info.color; flashAlpha = 0.25; notes.splice(notes.indexOf(b.targetNote), 1);
+                    score += 10; if (isDynamicMode) speedMultiplier += 0.006; updateHUD(); playSound(AUDIO_PATHS.hit, 0.9);
+                } else { for(let p=0;p<20;p++) particles.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, radius: Math.random()*4+1, color: b.color, alpha: 1, decay: Math.random()*0.02+0.015 }); playSound(AUDIO_PATHS.miss, 0.6); }
+                bullets.splice(i, 1);
+            } else { b.x += (dx/dist)*b.speed; b.y += (dy/dist)*b.speed; }
+        }
+        for (let i = particles.length - 1; i >= 0; i--) { particles[i].x += particles[i].vx; particles[i].y += particles[i].vy; particles[i].alpha -= particles[i].decay; if (particles[i].alpha <= 0) particles.splice(i, 1); }
+    }
+
+    function draw() {
+        ctx.fillStyle = 'rgba(11, 11, 30, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (flashAlpha > 0) { ctx.fillStyle = flashColor; ctx.globalAlpha = flashAlpha; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1.0; }
+        const laneWidth = canvas.width / 7;
+        for (let i = 0; i < 7; i++) {
+            let x = laneWidth * i + laneWidth / 2; ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)'; ctx.strokeStyle = BASE_NOTES[i].color + '33'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, canvas.height - 80, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.font = '14px Orbitron'; ctx.textAlign = 'center'; ctx.fillText(BASE_NOTES[i].name, x, canvas.height - 45);
+        }
+        ctx.strokeStyle = 'rgba(255, 0, 127, 0.2)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, canvas.height - 80); ctx.lineTo(canvas.width, canvas.height - 80); ctx.stroke();
+        notes.forEach(n => {
+            ctx.save(); let gradient = ctx.createLinearGradient(n.x, n.y, n.x, n.y - 40); gradient.addColorStop(0, n.info.color + 'aa'); gradient.addColorStop(1, 'transparent'); ctx.fillStyle = gradient; ctx.fillRect(n.x - 4, n.y - 40, 8, 40);
+            ctx.shadowBlur = 15; ctx.shadowColor = n.info.color; ctx.fillStyle = n.info.color; ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(n.x, n.y, n.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#050510'; ctx.font = 'bold 13px Orbitron'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n.info.name, n.x, n.y); ctx.restore();
+        });
+        const gunX = canvas.width / 2, gunY = (canvas.height - 15) + gunRecoilY; ctx.save(); ctx.shadowBlur = 20; ctx.shadowColor = '#00f2fe'; ctx.fillStyle = '#00f2fe'; ctx.beginPath(); ctx.arc(gunX, gunY, 25, Math.PI, 0); ctx.fill(); ctx.fillRect(gunX - 6, gunY - 30, 12, 25); ctx.restore();
+        bullets.forEach(b => { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = b.color; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore(); });
+        particles.forEach(p => { ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); });
+    }
+
+    function updateHUD() {
+        scoreVal.textContent = score; speedVal.textContent = isDynamicMode ? speedMultiplier.toFixed(2) + 'x' : LANGUAGES[currentLang].lvl + fixedSpeedLevel;
+        let hearts = ''; for (let i = 0; i < 3; i++) hearts += i < lives ? '❤️' : '🖤'; livesVal.textContent = hearts;
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+
+    async function setupAndStartGame() {
+        if (!(await initAudio())) return;
+        if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
+
+        menuMusicAudio.pause(); 
+        
+        startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+        langBox.classList.add('hidden'); 
+        
+        score = 0; lives = 3; notes = []; bullets = []; particles = []; spawnTimer = 0; lastDetectedNoteName = null; isPaused = false;
+        if (isDynamicMode) { baseSpeed = 0.65; speedMultiplier = 1.0; spawnInterval = 160; } 
+        else { baseSpeed = 0.2 + (fixedSpeedLevel * 0.18); speedMultiplier = 1.0; spawnInterval = Math.max(70, 180 - (fixedSpeedLevel * 14)); }
+        
+        updateHUD(); playSound(AUDIO_PATHS.start, 1.0); playRandomAmbient();            
+        gameActive = true;
+    }
+
+    function exitToMenu() {
+        isPaused = false; gameActive = false;
+        bgMusicAudio.pause(); bgMusicAudio.currentTime = 0;
+        pauseScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden');
+        startScreen.classList.remove('hidden'); langBox.classList.remove('hidden'); 
+        playMenuMusic();
+    }
+
+    startBtn.addEventListener('click', setupAndStartGame);
+    restartBtn.addEventListener('click', exitToMenu);
+    window.addEventListener('resize', resizeCanvas);
+    
+    resizeCanvas(); draw(); requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
