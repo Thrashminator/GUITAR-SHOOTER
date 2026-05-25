@@ -436,7 +436,7 @@
 
     /* === ЛОГИКА SHARE КНОПКИ === */
     function shareResult() {
-        const textToCopy = `🎸 Я набрал ${score} очков в Guitar Note Shooter! Сможешь побить мой рекорд? 🔥`;
+        const textToCopy = `🎸 I scored ${score}  points in Guitar Note Shooter! Can you beat my record? 🔥`;
         navigator.clipboard.writeText(textToCopy).then(() => {
             const shareBtn = document.getElementById('share-btn');
             const oldText = shareBtn.textContent;
