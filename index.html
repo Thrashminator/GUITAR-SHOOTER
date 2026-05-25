@@ -119,18 +119,27 @@
 
     <div id="auth-screen" class="overlay">
         <h1 style="margin-bottom: 5px;">GUITAR SHOOTER</h1>
-        <p id="auth-subtitle" style="color: #4facfe;">PILOT PROFILE SIGN IN</p>
+        <p id="auth-subtitle" style="color: #4facfe; margin-bottom: 15px;">PILOT HQ TERMINAL</p>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="tab-signup" class="lang-btn active" onclick="switchAuthTab('signup')">NEW PILOT</button>
+            <button id="tab-signin" class="lang-btn" onclick="switchAuthTab('signin')">EXISTING PILOT</button>
+        </div>
         
         <div class="auth-form">
             <input type="text" id="auth-username" placeholder="Nickname" maxlength="14">
-            <input type="number" id="auth-age" placeholder="Age (For Registration)" min="1" max="120">
-            <input type="text" id="auth-token" placeholder="Secret Token (For Existing Account Only)" autocomplete="off">
+            <input type="number" id="auth-age" placeholder="Age" min="1" max="120">
+            <input type="text" id="auth-token" class="hidden" placeholder="Your Secret Token" autocomplete="off">
         </div>
         
         <div id="token-box" class="token-display hidden">
-            <div style="font-size: 0.8rem; color: #a0a0c0;">YOUR SECRET TOKEN (SAVE IT TO LOG IN LATER):</div>
+            <div style="font-size: 0.8rem; color: #a0a0c0;">SAVE YOUR SECRET TOKEN TO LOG IN LATER:</div>
             <div id="token-generated-val" style="font-size: 1.4rem; color: #00f2fe; font-family: 'Orbitron'; font-weight: bold; margin: 5px 0;">--</div>
+            <button class="btn" style="padding: 5px 15px; font-size: 0.8rem;" onclick="copyTokenToClipboard()">COPY TOKEN</button>
         </div>
+
+        <button class="btn" id="auth-submit-btn" onclick="handleAuth()">CONFIRM</button>
+    </div>
 
         <button class="btn" id="auth-submit-btn" onclick="handleAuth()">CONFIRM</button>
     </div>
@@ -321,50 +330,108 @@
         } catch(e) { console.log("Silent login failed."); }
     }
 
+    let authMode = 'signup'; // по умолчанию режим регистрации
+
+    function switchAuthTab(mode) {
+        authMode = mode;
+        const tabSignup = document.getElementById('tab-signup');
+        const tabSignin = document.getElementById('tab-signin');
+        const inputAge = document.getElementById('auth-age');
+        const inputToken = document.getElementById('auth-token');
+        const tokenBox = document.getElementById('token-box');
+
+        tokenBox.classList.add('hidden'); // прячем токен при переключении
+
+        if (mode === 'signup') {
+            tabSignup.classList.add('active');
+            tabSignin.classList.remove('active');
+            inputAge.classList.remove('hidden');
+            inputToken.classList.add('hidden');
+            document.getElementById('auth-subtitle').textContent = "PILOT PROFILE REGISTRATION";
+        } else {
+            tabSignin.classList.add('active');
+            tabSignup.classList.remove('active');
+            inputAge.classList.add('hidden');
+            inputToken.classList.remove('hidden');
+            document.getElementById('auth-subtitle').textContent = "ACCESS VIA TOKEN";
+        }
+    }
+
+    function copyTokenToClipboard() {
+        const tokenText = document.getElementById('token-generated-val').textContent;
+        navigator.clipboard.writeText(tokenText).then(() => {
+            alert("Token copied to clipboard!");
+        });
+    }
+
     async function handleAuth() {
         const username = document.getElementById('auth-username').value.trim();
         const age = parseInt(document.getElementById('auth-age').value);
         const token = document.getElementById('auth-token').value.trim();
+        const submitBtn = document.getElementById('auth-submit-btn');
         
         if(!username) return alert("Nickname required");
 
         let bodyData = { username };
-        if(token) bodyData.token = token;
-        else if(age) bodyData.age = age;
-        else return alert("Provide Age for new registration OR Secret Token for existing nickname!");
+        
+        if (authMode === 'signup') {
+            if(!age) return alert("Please enter your age to register!");
+            bodyData.age = age;
+        } else {
+            if(!token) return alert("Please enter your secret token to log in!");
+            bodyData.token = token;
+        }
+
+        // Визуально показываем, что мы ждем сервер (особенно если он спит)
+        const originalBtnText = submitBtn.textContent;
+        submitBtn.textContent = "CONNECTING TO SERVER...";
+        submitBtn.disabled = true;
 
         try {
+            // Ставим долгий таймаут ожидания, чтобы дождаться просыпания Render
             let res = await fetch(`${SERVER_URL}/api/register`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(bodyData)
             });
             let data = await res.json();
             
-            if(data.error) return alert(data.error);
+            if(data.error) {
+                alert(data.error);
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+                return;
+            }
             
             currentUser = data.player;
             localStorage.setItem('guitar_shooter_user', currentUser.username);
             localStorage.setItem('guitar_shooter_token', currentUser.secret_token);
 
-            if(!token) {
+            if(authMode === 'signup') {
                 document.getElementById('token-generated-val').textContent = currentUser.secret_token;
                 document.getElementById('token-box').classList.remove('hidden');
-                document.getElementById('auth-submit-btn').onclick = function() {
-                    document.getElementById('auth-screen').classList.add('hidden');
-                    document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
-                    startScreen.classList.remove('hidden');
-                    playMenuMusic();
+                
+                // Меняем действие кнопки, чтобы пропустить игрока в меню только ПОСЛЕ того, как он увидит токен
+                submitBtn.textContent = "ENTER GAME";
+                submitBtn.disabled = false;
+                submitBtn.onclick = function() {
+                    proceedToMenu();
                 };
-                alert("Registration successful! Save your Secret Token to not lose your profile!");
             } else {
-                document.getElementById('auth-screen').classList.add('hidden');
-                document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
-                startScreen.classList.remove('hidden');
-                playMenuMusic();
+                proceedToMenu();
             }
-        } catch(e) { alert("Server error. Run node server.js first!"); }
+        } catch(e) { 
+            alert("Server connection timeout. Render is waking up, please click CONFIRM again in 10 seconds!"); 
+            submitBtn.textContent = originalBtnText;
+            submitBtn.disabled = false;
+        }
     }
 
+    function proceedToMenu() {
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('welcome-user').textContent = "WELCOME, " + currentUser.username.toUpperCase();
+        startScreen.classList.remove('hidden');
+        playMenuMusic();
+    }
     async function openLeaderboard() {
         document.getElementById('leaderboard-screen').classList.remove('hidden');
         let tbody = document.getElementById('leaderboard-table-body');
