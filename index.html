@@ -34,7 +34,9 @@
             border: none; padding: 12px 35px; color: #050510; font-size: 1rem; font-weight: bold; border-radius: 30px;
             cursor: pointer; box-shadow: 0 0 20px rgba(0, 242, 254, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin: 5px;
         }
-        .btn:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 242, 254, 0.7); }
+        .btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 242, 254, 0.7); }
+        .btn:disabled { background: #555; color: #aaa; cursor: not-allowed; box-shadow: none; transform: none; }
+        
         .btn-secondary {
             background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(0, 242, 254, 0.4); color: #00f2fe;
         }
@@ -78,12 +80,11 @@
         .leaderboard-table th { color: #00f2fe; font-size: 0.9rem; }
         .leaderboard-table tr:hover { background: rgba(0, 242, 254, 0.03); }
 
-        /* HUD & Кнопки управления (ОБНОВЛЕНО) */
         #hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; font-family: 'Orbitron', sans-serif; pointer-events: none; z-index: 5; }
         .hud-item { background: rgba(255, 255, 255, 0.05); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0, 242, 254, 0.2); backdrop-filter: blur(4px); }
         .hud-label { font-size: 0.75rem; color: #707090; margin-bottom: 4px; }
         .hud-value { font-size: 1.3rem; color: #4facfe; text-shadow: 0 0 10px rgba(79, 172, 254, 0.5); }
-        #pause-trigger-btn { pointer-events: auto; align-self: center; margin: 0; } /* Кнопка теперь использует общий класс .btn */
+        #pause-trigger-btn { pointer-events: auto; align-self: center; margin: 0; } 
         .hud-item.heart-damaged { animation: heartBreak 0.4s ease-out; border-color: #ff0055; background: rgba(255, 0, 85, 0.15); }
 
         .settings-toggle { display: flex; align-items: center; justify-content: space-between; width: 250px; margin: 12px 0; font-family: 'Orbitron', sans-serif; font-size: 0.9rem; }
@@ -119,7 +120,7 @@
 
     <div id="auth-screen" class="overlay">
         <h1 style="margin-bottom: 5px;">GUITAR SHOOTER</h1>
-        <p id="auth-subtitle" style="color: #4facfe; margin-bottom: 15px;">PILOT HQ TERMINAL</p>
+        <p id="auth-subtitle" style="color: #4facfe; margin-bottom: 15px;">PILOT PROFILE REGISTRATION</p>
         
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button id="tab-signup" class="lang-btn active" onclick="switchAuthTab('signup')">NEW PILOT</button>
@@ -137,9 +138,6 @@
             <div id="token-generated-val" style="font-size: 1.4rem; color: #00f2fe; font-family: 'Orbitron'; font-weight: bold; margin: 5px 0;">--</div>
             <button class="btn" style="padding: 5px 15px; font-size: 0.8rem;" onclick="copyTokenToClipboard()">COPY TOKEN</button>
         </div>
-
-        <button class="btn" id="auth-submit-btn" onclick="handleAuth()">CONFIRM</button>
-    </div>
 
         <button class="btn" id="auth-submit-btn" onclick="handleAuth()">CONFIRM</button>
     </div>
@@ -196,13 +194,17 @@
     <div id="game-over-screen" class="overlay hidden">
         <h1 style="color: #ff0055; text-shadow: 0 0 20px rgba(255,0,85,0.6);">GAME OVER</h1>
         <p id="final-score">You scored: 0 points</p>
-        <button class="btn" id="restart-btn">PLAY AGAIN</button>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" id="restart-btn">PLAY AGAIN</button>
+            <button class="btn btn-secondary" id="share-btn" onclick="shareResult()">SHARE SCORE</button>
+        </div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 </div>
 
 <script>
+    // 🔴 ТУТ МЕНЯЙ АДРЕС НА СВОЙ RENDER 🔴
     const SERVER_URL = "https://guitar-shooter-server.onrender.com";
 
     const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -256,7 +258,7 @@
         { id: 1, name: "Delta Velocity", path: "sounds/Track 8.mp3" },
         { id: 1, name: "Nebula Chill", path: "sounds/Track 9.mp3" },
         { id: 2, name: "Orion's Belt", path: "sounds/Track 10.mp3" }
-    ];
+    ]; 
 
     const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
     const gameContainer = document.getElementById('game-container');
@@ -330,7 +332,8 @@
         } catch(e) { console.log("Silent login failed."); }
     }
 
-    let authMode = 'signup'; // по умолчанию режим регистрации
+    /* === ОБНОВЛЕННАЯ ЛОГИКА АВТОРИЗАЦИИ === */
+    let authMode = 'signup'; 
 
     function switchAuthTab(mode) {
         authMode = mode;
@@ -339,8 +342,11 @@
         const inputAge = document.getElementById('auth-age');
         const inputToken = document.getElementById('auth-token');
         const tokenBox = document.getElementById('token-box');
+        const submitBtn = document.getElementById('auth-submit-btn');
 
-        tokenBox.classList.add('hidden'); // прячем токен при переключении
+        tokenBox.classList.add('hidden'); 
+        submitBtn.textContent = "CONFIRM";
+        submitBtn.onclick = handleAuth; 
 
         if (mode === 'signup') {
             tabSignup.classList.add('active');
@@ -382,13 +388,11 @@
             bodyData.token = token;
         }
 
-        // Визуально показываем, что мы ждем сервер (особенно если он спит)
         const originalBtnText = submitBtn.textContent;
         submitBtn.textContent = "CONNECTING TO SERVER...";
         submitBtn.disabled = true;
 
         try {
-            // Ставим долгий таймаут ожидания, чтобы дождаться просыпания Render
             let res = await fetch(`${SERVER_URL}/api/register`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(bodyData)
@@ -410,12 +414,9 @@
                 document.getElementById('token-generated-val').textContent = currentUser.secret_token;
                 document.getElementById('token-box').classList.remove('hidden');
                 
-                // Меняем действие кнопки, чтобы пропустить игрока в меню только ПОСЛЕ того, как он увидит токен
                 submitBtn.textContent = "ENTER GAME";
                 submitBtn.disabled = false;
-                submitBtn.onclick = function() {
-                    proceedToMenu();
-                };
+                submitBtn.onclick = proceedToMenu;
             } else {
                 proceedToMenu();
             }
@@ -432,6 +433,20 @@
         startScreen.classList.remove('hidden');
         playMenuMusic();
     }
+
+    /* === ЛОГИКА SHARE КНОПКИ === */
+    function shareResult() {
+        const textToCopy = `🎸 Я набрал ${score} очков в Guitar Note Shooter! Сможешь побить мой рекорд? 🔥`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            const shareBtn = document.getElementById('share-btn');
+            const oldText = shareBtn.textContent;
+            shareBtn.textContent = "COPIED! ✅";
+            setTimeout(() => { shareBtn.textContent = oldText; }, 2000);
+        }).catch(err => {
+            alert("Не удалось скопировать, вот твой результат: " + textToCopy);
+        });
+    }
+
     async function openLeaderboard() {
         document.getElementById('leaderboard-screen').classList.remove('hidden');
         let tbody = document.getElementById('leaderboard-table-body');
